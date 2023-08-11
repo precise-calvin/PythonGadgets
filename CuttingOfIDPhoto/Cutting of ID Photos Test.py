@@ -14,10 +14,10 @@ img_name_list = []
 # 定义文件名索引
 i = 0
 
-# # 读取/Users/calvin/Desktop/imagename.txt下的图片名字
-# with open('/Users/calvin/Desktop/imagename.txt', 'r') as f:
-#     for line in f.readlines():
-#         img_name_list.append(line.strip('\n'))
+# 读取/Users/calvin/Desktop/imagename.txt下的图片名字
+with open('/Users/calvin/Desktop/imagename.txt', 'r') as f:
+    for line in f.readlines():
+        img_name_list.append(line.strip('\n'))
 
 
 # 遍历文件夹下所有文件，将图片路径保存到列表中
@@ -35,12 +35,16 @@ img_path_list.sort()
 
 # 遍历图片路径列表，读取图片并裁剪
 for file_path in img_path_list:
-    
-    # # 读取集合中的图片名字
-    # new_img_name = img_name_list[i]
-    #
-    # # 自增一下
-    # i = i + 1
+    # 读取集合中的图片名字
+    new_img_name = img_name_list[i]
+
+    # 自增一下
+    i = i + 1
+
+    if img_name_list.count(new_img_name) > 1 and img_name_list.index(new_img_name) < i-1:
+        print(new_img_name + '重复的身份证号，已跳过')
+        continue
+
 
     # # 拼接完整的图片路径
     # img_path = os.path.join(folder_path, file_name)
@@ -69,9 +73,9 @@ for file_path in img_path_list:
     file_name_without_ext = os.path.splitext(os.path.basename(file_path))[0]
 
     # 保存图片
-    cv2.imwrite(folder_path + 'output/' + file_name_without_ext + '.jpg', face_img_resized)
-    # cv2.imwrite(folder_path + '/output/' + new_img_name + '.jpg', face_img_resized)
+    # cv2.imwrite(folder_path + 'output/' + file_name_without_ext + '.jpg', face_img_resized)
+    cv2.imwrite(folder_path + '/output/' + new_img_name + '.jpg', face_img_resized)
 
     # 保存结果图片
-    print('源文件名：' + file_path + '，裁剪后的文件名：' + folder_path + 'output/' + file_name_without_ext + '.jpg' + '已保存')
+    print('源文件名：' + file_path + '，裁剪后的文件名：' + folder_path + 'output/' + new_img_name + '.jpg' + '已保存')
 
