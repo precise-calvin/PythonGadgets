@@ -1,8 +1,20 @@
 import cv2
 import face_recognition
 import os
-# 读取证件照片
-# 指定文件夹路径 
+
+# 介绍：
+# 从文本文件中读取身份证号,并将身份证号作为图片名称保存，以此来解决裁剪后的图片顺序和身份证号顺序不一致的问题。
+
+# 1.读取指定文件夹下的图片文件路径。
+# 2.从文本文件中读取身份证号,保存到名字列表。
+# 3.对图片路径排序,保证顺序一致。
+# 4.遍历图片,读取身份证号并检查是否重复。
+# 5.如果发现重复身份证号,则打印日志并跳过当前图片的裁剪。
+# 6.否则调用OpenCV进行人脸检测、裁剪、调整大小。
+# 7.构造输出图片路径和名称,使用身份证号作为图片名称保存。
+# 8.打印裁剪后图片的保存路径。
+
+# 指定文件夹路径读取证件照片
 folder_path = '/Users/calvin/Desktop/test/'
 
 # 初始化一个空列表用来保存图片路径
@@ -18,7 +30,6 @@ i = 0
 with open('/Users/calvin/Desktop/imagename.txt', 'r') as f:
     for line in f.readlines():
         img_name_list.append(line.strip('\n'))
-
 
 # 遍历文件夹下所有文件，将图片路径保存到列表中
 for file_name in os.listdir(folder_path):
@@ -44,10 +55,6 @@ for file_path in img_path_list:
     if img_name_list.count(new_img_name) > 1 and img_name_list.index(new_img_name) < i-1:
         print(new_img_name + '重复的身份证号，已跳过')
         continue
-
-
-    # # 拼接完整的图片路径
-    # img_path = os.path.join(folder_path, file_name)
     
     # 检测人脸位置
     img = cv2.imread(file_path)
@@ -73,9 +80,8 @@ for file_path in img_path_list:
     file_name_without_ext = os.path.splitext(os.path.basename(file_path))[0]
 
     # 保存图片
-    # cv2.imwrite(folder_path + 'output/' + file_name_without_ext + '.jpg', face_img_resized)
     cv2.imwrite(folder_path + '/output/' + new_img_name + '.jpg', face_img_resized)
 
-    # 保存结果图片
+    # 打印日志
     print('源文件名：' + file_path + '，裁剪后的文件名：' + folder_path + 'output/' + new_img_name + '.jpg' + '已保存')
 

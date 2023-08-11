@@ -1,24 +1,24 @@
 import cv2
 import face_recognition
 import os
-# 读取证件照片
-# 指定文件夹路径 
+
+# 介绍：
+# 1.遍历指定文件夹,读取jpg/png/jpeg格式的图片文件,保存图片路径到列表。
+# 2.对图片路径列表排序,确保顺序与文件名一致。
+# 3.循环读取每张原始图片,使用OpenCV检测人脸区域。
+# 4.如果检测到人脸,则计算人脸坐标,根据坐标裁剪图像。
+# 5.调整裁剪图像大小为统一尺寸300x400。
+# 6.生成输出图片的路径默认为读取照片文件夹下创建的‘output’文件夹。
+
+
+# 指定文件夹路径读取证件照片
 folder_path = '/Users/calvin/Desktop/test/'
 
 # 初始化一个空列表用来保存图片路径
 img_path_list = [] 
 
-#初始化一个空列表用来保存图片名字
-img_name_list = []
-
 # 定义文件名索引
 i = 0
-
-# # 读取/Users/calvin/Desktop/imagename.txt下的图片名字
-# with open('/Users/calvin/Desktop/imagename.txt', 'r') as f:
-#     for line in f.readlines():
-#         img_name_list.append(line.strip('\n'))
-
 
 # 遍历文件夹下所有文件，将图片路径保存到列表中
 for file_name in os.listdir(folder_path):
@@ -35,16 +35,6 @@ img_path_list.sort()
 
 # 遍历图片路径列表，读取图片并裁剪
 for file_path in img_path_list:
-    
-    # # 读取集合中的图片名字
-    # new_img_name = img_name_list[i]
-    #
-    # # 自增一下
-    # i = i + 1
-
-    # # 拼接完整的图片路径
-    # img_path = os.path.join(folder_path, file_name)
-    
     # 检测人脸位置
     img = cv2.imread(file_path)
     locations = face_recognition.face_locations(img)
@@ -70,7 +60,6 @@ for file_path in img_path_list:
 
     # 保存图片
     cv2.imwrite(folder_path + 'output/' + file_name_without_ext + '.jpg', face_img_resized)
-    # cv2.imwrite(folder_path + '/output/' + new_img_name + '.jpg', face_img_resized)
 
     # 保存结果图片
     print('源文件名：' + file_path + '，裁剪后的文件名：' + folder_path + 'output/' + file_name_without_ext + '.jpg' + '已保存')
