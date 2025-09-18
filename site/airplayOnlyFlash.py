@@ -7,7 +7,7 @@ macOS 版本 —— 当在局域网中扫描到名为 multitool (multitool.lan) 
     2) 通过 SSH 在远端执行：
        zcat /mnt/images/AirplayOnly_backup.img.gz | dd of=/dev/mmcblk2 bs=4M conv=fsync
        并在完成后关机
-    3) 刷写完成后继续等待下一台设备上线
+    3) 刷写完成后继续等待下一台设备上线.
 """
 
 import subprocess
