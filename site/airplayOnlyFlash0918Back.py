@@ -5,31 +5,33 @@ autowrite_multitool_remote_loop.py
 macOS 版本 —— 当在局域网中扫描到名为 multitool (multitool.lan) 的主机时：
     1) 取到该主机的 IP（通过 ping 解析）
     2) 通过 SSH 在远端执行：
-       zcat /mnt/images/AirplayAndDlan_backup.img.gz | dd of=/dev/mmcblk2 bs=4M status=progress conv=fsync,notrunc
+       zcat /mnt/images/AirplayOnly_backup.img.gz | dd of=/dev/mmcblk2 bs=4M conv=fsync
        并在完成后关机
-    3) 刷写完成后继续等待下一台设备上线
+    3) 刷写完成后继续等待下一台设备上线.
 """
 
 import subprocess
 import time
 import os
 import signal
-import sys
 from datetime import datetime
 import re
 import shutil
 import requests
 import urllib.parse
+import sys
 
 # ====== 配置区（按需修改） ======
-# REMOTE_IMAGE_PATH = "/mnt/images/AirplayAndDlan_backup.img.gz"
-REMOTE_IMAGE_PATH = "/mnt/images/AirplayOnly_backup.img.gz"
+# REMOTE_IMAGE_PATH = "/mnt/images/AirplayOnly_backup.img.gz"
+REMOTE_IMAGE_PATH = "/mnt/images/AirplayAndDlan_backup.img.gz"
+
 REMOTE_IMAGE_NAME = os.path.basename(REMOTE_IMAGE_PATH)
 REMOTE_USER = "root"
 REMOTE_DEV = "/dev/mmcblk2"
 TARGET_NAMES = ["multitool.lan", "multitool"]
 POLL_INTERVAL = 3  # 秒
 SSH_OPTS = ["-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"]
+BARK_URL = "https://api.day.app/cCTnvfFmg93txkgLP6SupU"
 # =================================
 
 stop_requested = False
@@ -46,9 +48,6 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 def parse_ping_ip(ping_output):
-    """解析 ping 输出第一行中的 IP"""
-    if not ping_output:
-        return None
     m = re.search(r'\((\d{1,3}(?:\.\d{1,3}){3})\)', ping_output)
     if m:
         return m.group(1)
@@ -58,7 +57,6 @@ def parse_ping_ip(ping_output):
     return None
 
 def try_resolve_by_ping(name, timeout_sec=3):
-    """ping 并解析 IP"""
     try:
         completed = subprocess.run(
             ["ping", "-c", "1", name],
@@ -105,13 +103,13 @@ def play_sound(kind):
 
 def perform_transfer_remote(remote_image_path, remote_user, remote_ip, remote_dev):
     """
-    在远端执行本地刷写命令，并通过 /proc/sysrq-trigger 关机
+    在远端执行刷写命令，并通过 /proc/sysrq-trigger 关机
+    实时显示刷写进度在一行
     """
     ssh_target = f"{remote_user}@{remote_ip}"
     remote_cmd = (
         f"zcat {remote_image_path} | dd of={remote_dev} bs=4M "
-        # f"status=progress count=1860 conv=fsync && sync && sleep 2s && echo o > /proc/sysrq-trigger"
-        f"status=progress oflag=direct && sync && sleep 2s && echo o > /proc/sysrq-trigger"
+        f"status=progress oflag=direct conv=fsync && sync && sleep 2s && echo o > /proc/sysrq-trigger"
     )
     ssh_cmd = ["ssh"] + SSH_OPTS + [ssh_target, remote_cmd]
 
@@ -119,57 +117,63 @@ def perform_transfer_remote(remote_image_path, remote_user, remote_ip, remote_de
     play_sound("start")
 
     try:
-        proc = subprocess.Popen(ssh_cmd)
-        while proc.poll() is None:
-            if stop_requested:
-                proc.terminate()
-                log("已中断远端刷写进程。")
-                play_sound("failure")
-                return False
-            time.sleep(1)
+        proc = subprocess.Popen(
+            ssh_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+
+        output_accum = ""
+        while True:
+            line = proc.stdout.readline()
+            if not line and proc.poll() is not None:
+                break
+            if line:
+                line = line.rstrip()
+                output_accum += line + "\n"
+                # 在一行刷新显示
+                print(f"\r刷写进度: {line}", end="", flush=True)
+
+        proc.wait()
+        print()  # 刷写完成后换行
+
+        # 判断返回码或是否包含 "No space left on device"
         if proc.returncode == 0:
             log(f"{remote_ip} 刷写成功并已关机。")
             play_sound("success")
             return True
-        # 如果返回的信息里包含：“No space left on device”。则刷写成功且提示“风险刷机成功（超emmc大小刷写）”
-        if proc.poll() is not None:
-            stdout, stderr = proc.communicate()
-            output = (stdout or b"") + (stderr or b"")
-            if b"No space left on device" in output:
-                log(f"{remote_ip} 刷写成功（超emmc大小刷写）并已关机。")
-                play_sound("failure")
-                time.sleep(2)
-                play_sound("success")
-                return True
-        else:
-            log(f"ssh 返回非零码：{proc.returncode}")
+
+        if "No space left on device" in output_accum:
+            log(f"{remote_ip} 刷写成功（超emmc大小刷写）并已关机。")
             play_sound("failure")
-            return False
+            time.sleep(1)
+            play_sound("success")
+            return True
+
+        log(f"ssh 返回非零码：{proc.returncode}")
+        play_sound("failure")
+        return False
+
     except Exception as e:
         log(f"刷写失败，异常：{e}")
         play_sound("failure")
         return False
-# 新增一个bark推送功能
 
-def send_bark(title, message, url="https://api.day.app/cCTnvfFmg93txkgLP6SupU"):
-    # 自定义声音
+def send_bark(title, message, url=BARK_URL):
     sound = "glass"
-
-    # 对标题和内容进行 URL 编码
     encoded_title = urllib.parse.quote(title)
     encoded_message = urllib.parse.quote(message)
-
-    # 构造最终 URL
     push_url = f"{url}/{encoded_title}/{encoded_message}?sound={sound}"
-
     try:
         response = requests.get(push_url)
         if response.status_code == 200:
-            print("推送成功！")
+            print("Bark 推送成功！")
         else:
-            print(f"推送失败，状态码: {response.status_code}, 内容: {response.text}")
+            print(f"Bark 推送失败，状态码: {response.status_code}, 内容: {response.text}")
     except Exception as e:
-        print(f"推送异常: {e}")
+        print(f"Bark 推送异常: {e}")
 
 def main():
     log("脚本启动（macOS）。开始轮询目标主机...")
@@ -193,7 +197,6 @@ def main():
                     log(f"{ip} 不可达，继续检测下一个名称。")
             else:
                 log(f"{name} 未解析到。")
-        # 等待间隔
         for _ in range(POLL_INTERVAL):
             if stop_requested:
                 break

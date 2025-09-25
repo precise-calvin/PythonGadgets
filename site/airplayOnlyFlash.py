@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-autowrite_multitool_remote_loop.py
-
 macOS 版本 —— 当在局域网中扫描到名为 multitool (multitool.lan) 的主机时：
     1) 取到该主机的 IP（通过 ping 解析）
     2) 通过 SSH 在远端执行：
@@ -32,6 +30,18 @@ TARGET_NAMES = ["multitool.lan", "multitool"]
 POLL_INTERVAL = 3  # 秒
 SSH_OPTS = ["-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"]
 BARK_URL = "https://api.day.app/cCTnvfFmg93txkgLP6SupU"
+
+# 颜色常量
+class Colors:
+    BLUE = '\033[34m'
+    ORANGE = '\033[33m'
+    GREEN = '\033[32m'
+    RED = '\033[31m'
+    RESET = '\033[0m'
+
+def colored_text(text, color):
+    return f"{color}{text}{Colors.RESET}"
+
 # =================================
 
 stop_requested = False
@@ -133,31 +143,31 @@ def perform_transfer_remote(remote_image_path, remote_user, remote_ip, remote_de
             if line:
                 line = line.rstrip()
                 output_accum += line + "\n"
-                # 在一行刷新显示
-                print(f"\r刷写进度: {line}", end="", flush=True)
+                # 在一行刷新显示（橙色）
+                print(f"\r{colored_text('刷写进度: ' + line, Colors.ORANGE)}", end="", flush=True)
 
         proc.wait()
         print()  # 刷写完成后换行
 
         # 判断返回码或是否包含 "No space left on device"
         if proc.returncode == 0:
-            log(f"{remote_ip} 刷写成功并已关机。")
+            log(colored_text(f"{remote_ip} 刷写成功并已关机。", Colors.GREEN))
             play_sound("success")
             return True
 
         if "No space left on device" in output_accum:
-            log(f"{remote_ip} 刷写成功（超emmc大小刷写）并已关机。")
+            log(colored_text(f"{remote_ip} 刷写成功（超emmc大小刷写）并已关机。", Colors.GREEN))
             play_sound("failure")
             time.sleep(1)
             play_sound("success")
             return True
 
-        log(f"ssh 返回非零码：{proc.returncode}")
+        log(colored_text(f"ssh 返回非零码：{proc.returncode}", Colors.RED))
         play_sound("failure")
         return False
 
     except Exception as e:
-        log(f"刷写失败，异常：{e}")
+        log(colored_text(f"刷写失败，异常：{e}", Colors.RED))
         play_sound("failure")
         return False
 
@@ -184,23 +194,25 @@ def main():
             ip = try_resolve_by_ping(name)
             if ip:
                 if is_reachable(ip):
+                    print()  # 换行，结束之前的刷新行
                     log(f"发现可达设备 {name} -> {ip}，准备刷写")
                     send_bark("刷写开始", REMOTE_IMAGE_NAME)
                     ok = perform_transfer_remote(REMOTE_IMAGE_PATH, REMOTE_USER, ip, REMOTE_DEV)
                     if ok:
                         send_bark("刷写完成", REMOTE_IMAGE_NAME)
-                        log(f"{ip} 刷写完成，继续等待下一台设备上线。")
+                        log(colored_text(f"{ip} 刷写完成，继续等待下一台设备上线。", Colors.GREEN))
                     else:
                         send_bark("刷写失败", REMOTE_IMAGE_NAME)
-                        log(f"{ip} 刷写失败，将在下轮重试。")
+                        log(colored_text(f"{ip} 刷写失败，将在下轮重试。", Colors.RED))
                 else:
-                    log(f"{ip} 不可达，继续检测下一个名称。")
+                    print(f"\r[{datetime.now().isoformat(sep=' ', timespec='seconds')}] {colored_text(f'{ip} 不可达，继续检测...', Colors.BLUE)}", end="", flush=True)
             else:
-                log(f"{name} 未解析到。")
+                print(f"\r[{datetime.now().isoformat(sep=' ', timespec='seconds')}] {colored_text(f'正在查找 {name}...', Colors.BLUE)}", end="", flush=True)
         for _ in range(POLL_INTERVAL):
             if stop_requested:
                 break
             time.sleep(1)
+    print()  # 换行，结束最后的刷新行
     log("被请求停止，退出程序。")
 
 if __name__ == "__main__":
